@@ -307,7 +307,7 @@ def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
         print(f'acc rate = {(NACCS)/(tn-t0)} Hz')
 
     if plot_accs:
-        plot_acc(accs,ACCFREQ,ch,logmag=False,unwrapphase=False,nfft=None)
+        plot_acc(accs,ACCFREQ,0,logmag=False,unwrapphase=False,nfft=None)
 
 
     return accs, ACCFREQ
@@ -345,7 +345,7 @@ def plot_acc(accs,accfreq,ch,logmag=False,unwrapphase=False,nfft=None):
     pxp,pfp = plt.mlab.psd(p,Fs=accfreq,NFFT=nfft,window=plt.mlab.window_none)
 
     if logmag:
-        a = 20*log10(a)
+        a = 20*np.log10(a)
     if unwrapphase:
         p = np.unwrap(p)
 
@@ -397,7 +397,7 @@ def plot_sweep(freqs_hz,samples,offset_center=True,logmag=False,unwrapphase=Fals
         funit='[MHz]'
 
     if logmag:
-        mag = 20*log10(mag)
+        mag = 20*np.log10(mag)
         magunit='[dB]'
     if unwrapphase:
         phase = np.unwrap(phase)
