@@ -19,7 +19,7 @@ The client runs elsewhere. It sends commands to the server, receives data and pe
 A copy of `souk-remote-control-server` is needed on the RFSoC.
 A copy of `souk-remote-control-client` is needed on a laptop/desktop/whatever that can see the RFSoC on the network.
 
-I suppose the client could be run on the RFSoC itself.
+It is plausible that the client could be executed directly on the RFSoC.
 
 1. Clone this git repo to your laptop/desktop.
 
@@ -29,6 +29,6 @@ I suppose the client could be run on the RFSoC itself.
 
 
 
-### Notes:
+## Tested Firmware Version
 
-
+This software has been tested with the SO:UK Firmware version 6.3.0.0. Please ensure that your firmware version matches this to guarantee compatibility. If you are using a different firmware version, please be aware that this software may not work as expected.
