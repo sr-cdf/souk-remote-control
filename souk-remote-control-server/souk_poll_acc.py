@@ -7,7 +7,7 @@ import socket
 import struct
 import numpy as np
 
-FPGFILE = '/home/casper/src/souk-firmware/firmware/src/souk_single_pipeline_krm/outputs/souk_single_pipeline_krm.fpg'
+FPGFILE = '/home/casper/git/souk-firmware/firmware/src/souk_single_pipeline_4x2/outputs/souk_single_pipeline_4x2.fpg'
 ACCNUM = 0
 WAIT_FOR_IP_ADDR = True
 DESTPORT = 10000
@@ -61,11 +61,11 @@ def fast_read_bram(acc, addrs, nbytes):
     """
     nbranch = len(addrs)
     base_addr = addrs[0]
-    dout = np.zeros(acc.n_chans, dtype='<i8') # 8 bytes for real+imag
+    dout = np.zeros(2*acc.n_chans, dtype='<i4') # 2*4 bytes for real+imag
     start_acc_cnt = acc.get_acc_cnt()
     for i, addr in enumerate(addrs):
         raw = acc.host.transport.axil_mm[addr:addr + nbytes]
-        dout[i::nbranch] = np.frombuffer(raw, dtype='<i8')
+        dout[i::nbranch] = np.frombuffer(raw, dtype='<i4')
     stop_acc_cnt = acc.get_acc_cnt()
     if start_acc_cnt != stop_acc_cnt:
         acc.logger.warning('Accumulation counter changed while reading data!')
@@ -108,6 +108,17 @@ def format_packets(t, d, error=False, pkt_nbyte=1024):
     for i in range(npkt):
         packets += [header + struct.pack('>I', i) + payload_bytes[i*pkt_nbyte:(i+1)*pkt_nbyte]]
     return packets
+
+def step_los(start_phase_steps, loop_cnt):
+    """
+    Increment phases by a small fraction of a bin width each sample
+    """
+    return start_phase_steps + ((loop_cnt % 100000) / 200000 * np.pi * 2**31)
+
+def compute_phases(start_phase_steps, acc):
+    acc_phase = np.arctan2(acc[0::2], acc[1::2])
+    C = 0.01 # arbitrary constant
+    return start_phase_steps  + C*acc_phase
     
 
 def main(args):
@@ -119,83 +130,58 @@ def main(args):
     n_chans = acc.n_chans
     fpga_clk = r.fpga.get_fpga_clock()
     r.adc_clk_hz = fpga_clk * 8 # HACK
-    acc_time_ms = 1000* acc_len * acc._n_serial_chans / r.fpga.get_fpga_clock()
+    acc_time_ms = 1000* acc_len * acc._n_serial_chans / acc._n_parallel_samples / r.fpga.get_fpga_clock()
     print(f'Accumulation time is approximately {acc_time_ms:.1f} milliseconds')
     freqs_hz = np.zeros(n_chans)
-    phase_offsets = np.zeros(n_chans, dtype='<i4')
+    phase_offsets_init = np.zeros(n_chans)
+    if args.update_los:
+        print('Initializing all LOs to bin centers')
+        # start with all LOs at 0
+        for i in range(n_chans):
+            r.mixer.set_phase_step(i, 0)
     addrs, nbytes = get_bram_addresses(acc)
     mixer_addrs, mixer_nbytes = get_bram_addresses_mixer(r.mixer)
-    #acc._wait_for_acc(0.00005)
-    #t0 = time.time()
-    #ip = None
-    #err_cnt = 0
-    #loop_cnt = 0
-    #times = []
-    #tlast = None
-    
-    nloop=0
-    if args.remote_control_port:
-        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind(("0.0.0.0", args.remote_control_port))
-        print('Control socket listening on', ("0.0.0.0", args.remote_control_port))
-        listener.listen()
+    acc._wait_for_acc(0.00005)
+    t0 = time.time()
+    ip = None
+    err_cnt = 0
+    loop_cnt = 0
+    times = []
+    tlast = None
+    try:
+        print('Entering loop')
         while True:
-            nloop=0
-            lconn, laddr = listener.accept()
-            with lconn:
-                print(f"Connected by {laddr}")
-                data = lconn.recv(1024).decode()
-                print(data)
-                if data.strip() == 'x':
-                    print('Received x, Quitting...')
-                    break
-                nloop=int(data.strip())
-                print('Received %d, starting...'%nloop)
-            if not nloop:
-                continue
+            if args.wait_for_ip:
+                ip = wait_non_zero_ip(acc)
             acc._wait_for_acc(0.00005)
-            t0 = time.time()
-            ip = None
-            err_cnt = 0
-            loop_cnt = 0
-            times = []
-            tlast = None
-
-            while True:
-                if args.wait_for_ip:
-                    ip = wait_non_zero_ip(acc)
-                else:
-                    ip = acc.get_dest_ip()
-                acc._wait_for_acc(0.00005)
-                tt0 = time.time()
-                t, d, err = fast_read_bram(acc, addrs, nbytes)
-                if ip is not None:
-                    for p in format_packets(t, d, error=err):
-                        sock.sendto(p, (ip, args.destport))
-                if err or (tlast is not None and tlast != t-1):
-                    err_cnt += 1
-                if args.update_los:
-                    fast_write_mixer(r.mixer, phase_offsets, mixer_addrs, mixer_nbytes)
-                tt1 = time.time()
-                times += [tt1 - tt0]
-                loop_cnt += 1
-                if args.remote_control_port:
-                    if loop_cnt == nloop:
-                        break
-                else:
-                    if loop_cnt == args.nloop:
-                        break
-                tlast = t
-            t1 = time.time()
-            avg_read_ms = np.mean(times)*1000
-            max_read_ms = np.max(times)*1000
-            avg_loop_ms = (t1-t0)/loop_cnt * 1000
-            print(f'Average read time: {avg_read_ms:.2f} ms')
-            print(f'Max read time: {max_read_ms:.2f} ms')
-            print(f'Average loop time: {avg_loop_ms:.2f} ms')
-            print(f'Number of reads: {loop_cnt}')
-            print(f'Number of too slow reads: {err_cnt}')
+            tt0 = time.time()
+            t, d, err = fast_read_bram(acc, addrs, nbytes)
+            if ip is not None:
+                for p in format_packets(t, d, error=err):
+                    sock.sendto(p, (ip, args.destport))
+            if err or (tlast is not None and tlast != t-1):
+                err_cnt += 1
+            if args.update_los:
+                #phase_offsets = np.array(step_los(phase_offsets_init, loop_cnt), dtype='<i4')
+                phase_offsets = np.array(compute_phases(phase_offsets_init, d), dtype='<i4')
+                fast_write_mixer(r.mixer, phase_offsets, mixer_addrs, mixer_nbytes)
+            tt1 = time.time()
+            times += [tt1 - tt0]
+            loop_cnt += 1
+            if loop_cnt == args.nloop:
+                break
+            tlast = t
+    except KeyboardInterrupt:
+        pass
+    t1 = time.time()
+    avg_read_ms = np.mean(times)*1000
+    max_read_ms = np.max(times)*1000
+    avg_loop_ms = (t1-t0)/loop_cnt * 1000
+    print(f'Average read time: {avg_read_ms:.2f} ms')
+    print(f'Max read time: {max_read_ms:.2f} ms')
+    print(f'Average loop time: {avg_loop_ms:.2f} ms')
+    print(f'Number of reads: {loop_cnt}')
+    print(f'Number of too slow reads: {err_cnt}')
     sock.close()
 
 if __name__ == '__main__':
@@ -221,10 +207,6 @@ if __name__ == '__main__':
     )
     parser.add_argument("--update-los", action='store_true',
         help = "If set, update all LOs in the system on each accumulation",
-    )
-    
-    parser.add_argument("--remote_control_port", type=int, default=None,
-        help = "If set, listen on socket for command to start stream",
     )
 
     args = parser.parse_args()

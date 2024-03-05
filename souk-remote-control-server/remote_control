@@ -14,8 +14,8 @@ echo "Starting remote control script"
 
 cd /home/casper/src/souk-remote-control/souk-remote-control-server/
 
-sudo /home/casper/py3venv/bin/python -u ./souk_poll_acc_remote_control.py --remote_control_port 12345
+sudo /home/casper/py3venv/bin/python -u ./remote_control_server.py
 
-echo "Remote Control running on port 12345"
+echo "Finished remote control script"
 
 
