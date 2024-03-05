@@ -133,7 +133,7 @@ acc = r.accumulators[0]
 #for first time, need to run ssh-keygen as casper on krm and copy the public key to /root/.ssh/authorized_keys
 
 def remote_quit(host=REMOTE_HOST,port=REMOTE_PORT):
-    """function to kill the transmitter script"""
+    """function to kill the remote control script"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((host, port))
@@ -146,22 +146,36 @@ def remote_quit(host=REMOTE_HOST,port=REMOTE_PORT):
     return
 
 def remote_start(host=REMOTE_HOST,port=REMOTE_PORT):
-    """function to start the transmitter script"""
+    """function to start the remote control script"""
     remote_command = 'ssh'
     remote_args = ['%s@%s'%(REMOTE_USER,REMOTE_HOST), '-tt', REMOTE_SCRIPT]
     process = Popen([remote_command, *remote_args],stdin=subprocess.DEVNULL)
     time.sleep(10)
     return
 
-def remote_stream(naccs,host=REMOTE_HOST,port=REMOTE_PORT):
-    """function to tell the transmitter script to start streaming"""
+def remote_program_and_initialise(host=REMOTE_HOST,port=REMOTE_PORT):
+    """ function to program and initialise the remote control script"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
+            cmd="p"
             s.connect((host, port))
-            s.send(b"%d"%naccs)
-            print('Successfully sent "%d" '%naccs)
+            s.send(cmd.encode())
+            print(f'Successfully sent "{cmd}"')
         except Exception as e:
-            print('Failed to send "%d" '%naccs)
+            print(f'Failed to send "{cmd}"')
+            raise(e)
+    return
+
+def remote_stream(naccs,host=REMOTE_HOST,port=REMOTE_PORT):
+    """function to tell the remote control script to start streaming"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            cmd="stream %d"%naccs
+            s.connect((host, port))
+            s.send(cmd.encode())
+            print(f'Successfully sent "{cmd}"')
+        except Exception as e:
+            print(f'Failed to send "{cmd}"')
             raise(e)
     return
 
@@ -293,28 +307,7 @@ def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
         print(f'acc rate = {(NACCS)/(tn-t0)} Hz')
 
     if plot_accs:
-
-        f,((s1,s2,s3,s4),(s5,s6,s7,s8)) = plt.subplots(2,4,sharex='row')
-
-        ch=0
-
-        i=accs['i'][:,ch]/1024*np.sqrt(1024)
-        q=accs['q'][:,ch]/1024*np.sqrt(1024)
-        a=np.absolute(i+1j*q)
-        p=np.angle(i+1j*q)
-        pxi,pfi = plt.mlab.psd(i,Fs=ACCFREQ,NFFT=nfft,window=plt.mlab.window_none)
-        pxq,pfq = plt.mlab.psd(q,Fs=ACCFREQ,NFFT=nfft,window=plt.mlab.window_none)
-        pxa,pfa = plt.mlab.psd(a,Fs=ACCFREQ,NFFT=nfft,window=plt.mlab.window_none)
-        pxp,pfp = plt.mlab.psd(p,Fs=ACCFREQ,NFFT=nfft,window=plt.mlab.window_none)
-
-        s1.plot(i)
-        s2.plot(q)
-        s3.plot(a)
-        s4.plot(p)
-        s5.loglog(pfi,pxi)
-        s6.loglog(pfq,pxq)
-        s7.loglog(pfa,pxa)
-        s8.loglog(pfp,pxp)
+        plot_acc(accs,ACCFREQ,ch,logmag=False,unwrapphase=False,nfft=None)
 
 
     return accs, ACCFREQ
