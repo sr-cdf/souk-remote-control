@@ -53,6 +53,7 @@ ADCCLK          = 2457600000 #2.4576 GHz
 PFBLEN          = 4096
 NCHANS          = 2048 #number of tones in a single acquisition
 
+
 #define the packet datatype with a name and format, a single acquisition is transmitted over multiple packets
 
 NAME_TIMESTAMP   = 'timestamp'
@@ -115,25 +116,17 @@ if not r.fpga.is_programmed():
 
 acc = r.accumulators[0]
 
+if not r.adc_clk_hz:
+    r.adc_clk_hz=2457600000
 
 
 
 
+#functions to control the server on the krm board 
 
-#functions to control a script on the board that sends out the packets
-
-#the following scripts need to be in place on the krm board:
-
-#/home/casper/remote_control_start -> to call the remote control script as root via ssh@localhost
-
-#/home/casper/remote_control -> to run the python script
-
-#souk-firmware/software/control_sw/test_scripts/souk_poll_acc_remote_control.py -> to start the control loop
-
-#for first time, need to run ssh-keygen as casper on krm and copy the public key to /root/.ssh/authorized_keys
 
 def remote_quit(host=REMOTE_HOST,port=REMOTE_PORT):
-    """function to kill the remote control script"""
+    """function to kill the remote control server"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((host, port))
@@ -145,16 +138,18 @@ def remote_quit(host=REMOTE_HOST,port=REMOTE_PORT):
     time.sleep(1)
     return
 
-def remote_start(host=REMOTE_HOST,port=REMOTE_PORT):
-    """function to start the remote control script"""
+def remote_start(host=REMOTE_HOST,port=REMOTE_PORT,waitstart=15):
+    """
+    function to start the remote control server
+    """
     remote_command = 'ssh'
     remote_args = ['%s@%s'%(REMOTE_USER,REMOTE_HOST), '-tt', REMOTE_SCRIPT]
     process = Popen([remote_command, *remote_args],stdin=subprocess.DEVNULL)
-    time.sleep(10)
+    time.sleep(waitstart)
     return
 
 def remote_program_and_initialise(host=REMOTE_HOST,port=REMOTE_PORT):
-    """ function to program and initialise the remote control script"""
+    """ function to program and initialise the remote control server"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             cmd="p"
@@ -167,7 +162,7 @@ def remote_program_and_initialise(host=REMOTE_HOST,port=REMOTE_PORT):
     return
 
 def remote_stream(naccs,host=REMOTE_HOST,port=REMOTE_PORT):
-    """function to tell the remote control script to start streaming"""
+    """function to tell the remote control server to start streaming"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             cmd="stream %d"%naccs
@@ -179,6 +174,231 @@ def remote_stream(naccs,host=REMOTE_HOST,port=REMOTE_PORT):
             raise(e)
     return
 
+# def remote_set_freqs(freqs,host=REMOTE_HOST,port=REMOTE_PORT):
+#     """function to tell the remote control server to do a fast mixer frequency setting"""
+#     freqs = np.atleast_1d(freqs)
+#     numfreqs=len(freqs)
+
+#     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+#         try:
+#             cmd="freqs %d"%naccs
+#             s.connect((host, port))
+#             s.send(cmd.encode())
+#             print(f'Successfully sent "{cmd}"')
+#         except Exception as e:
+#             print(f'Failed to send "{cmd}"')
+#             raise(e)
+#     return
+
+def sweep_v1(centerfreqs,span,numpoints,samples_per_point, direction='up',amplitudes=None,phases=None):
+    """
+    perform a sweep by repeated calling r.set_multi_tone(), and get_n_accs()
+
+    centerfreq is a numpy array of center frequencies in Hz
+    span is the sweep span in Hz
+    numpoints is an integer number of points to sweep
+    samplesperpoint is an integer number of samples to collect and average at each point
+    direction is a string, either 'up' or 'down'
+    amplitude is an optional numpy array of amplitudes for each tone, defaults to all 1.0
+    phases is an optional numpy array of phases for each tone, defaults to all 0.0
+
+    returns a dictionary of the results
+    """
+
+    numtones = len(centerfreqs)
+    freqs=centerfreqs
+    sz = np.zeros((numpoints,numtones),dtype=complex)
+    ez = np.zeros((numpoints,numtones),dtype=complex)              
+    offsets = np.linspace(-span/2,span/2,numpoints)
+    sweepfreqs = np.zeros((numpoints,numtones),dtype=float)
+    for j in range(len(offsets)):
+        r.set_multi_tone(freqs+offsets[j],amplitudes=amplitudes,phase_offsets_rads=phases)
+        accs,accfreq = get_n_accs(samples_per_point)
+        for k in range(len(freqs)):
+            z=np.mean(accs['i'][:,k])+1j*np.mean(accs['q'][:,k])
+            e=np.std(accs['i'][:,k])+1j*np.std(accs['q'][:,k])
+            sz[j,k]=z
+            ez[j,k]=e
+            sweepfreqs[j,k] = freqs[k]+offsets[j]
+
+    result = {'centerfreqs':centerfreqs,
+              'span':span,
+              'numpoints':numpoints,
+              'samples_per_point':samples_per_point,
+              'direction':direction,
+              'amplitudes':amplitudes,
+              'phases':phases,
+              'numtones':numtones,
+              'sweepfreqs':sweepfreqs, 
+              'sweep':sz,
+              'noise':ez,
+              'accfreq':accfreq,
+              'time_per_point':samples_per_point/accfreq,
+              'fpga_status':r.fpga.get_status()}
+    return result
+
+
+def sweep_v2(centerfreqs,spans,numpoints,samples_per_point,direction='up',amplitudes=None,phases=None):
+    """
+    Perform a frequency sweep using lower level calls than v1..
+    
+    centerfreqs is a numpy array of center frequencies in Hz
+    spans is a numpy array of spans in Hz
+    numpoints is an integer number of points to sweep
+    samplesperpoint is an integer number of samples to collect and average at each point
+    direction is a string, either 'up' or 'down'
+    amplitudes is an optional numpy array of amplitudes for each tone, defaults to all 1.0
+    phases is an optional numpy array of phases for each tone, defaults to all 0.0
+
+    During the sweep, when a tone reaches the edge of a filterbank channel, it is remapped to the nearest channel,
+
+
+    """
+
+    #check inputs
+    print('check inputs')
+
+    centerfreqs = np.atleast_1d(centerfreqs)
+    spans       = np.atleast_1d(spans)
+    assert len(centerfreqs) == len(spans)
+    numpoints=int(numpoints)
+    assert samples_per_point>0 and samples_per_point%1==0
+    assert direction in ('up','down')
+    
+    #explicitly define number of tones, and parallel/serial inputs
+    print('define number of tones, and parallel/serial inputs')
+    numtones = len(centerfreqs)
+    chans    = np.arange(numtones,dtype=int)
+    parallel = chans % r.mixer._n_parallel_chans
+    serial   = chans // r.mixer._n_parallel_chans
+    
+
+    #define the frequency sweep points for each tone
+    print('define the frequency sweep points for each tone')
+    sweepfreqs = np.zeros((numpoints,numtones))
+    for t in range(numtones):
+        cf=centerfreqs[t]
+        sp=spans[t]
+        sweepfreqs[:,t] = np.linspace(cf-sp/2.,cf+sp/2.,numpoints)
+        if direction=='down':
+            sweepfreqs[:,t] = sweepfreqs[:,t][::-1]
+    
+
+    #define the channel maps and mixer offset frequencies for each sweep point
+    print('define the channel maps and mixer offset frequencies for each sweep point')
+    chanmap_in  = -1*np.ones((numpoints,r.chanselect.n_chans_out),dtype=np.int32)
+    chanmap_out = -1*np.ones((numpoints,r.psb_chanselect.n_chans_out),dtype=np.int32)
+    lo_freqs    = np.zeros((numpoints,numtones))
+
+    # #N_RX_FFT = souk_mkid_readout.souk_mkid_readout.N_RX_FFT
+    # N_RX_FFT=8192
+    # rx_nearest_quick = (np.round(sweepfreqs/r.adc_clk_hz*N_RX_FFT+N_RX_FFT/2)).astype(int)%N_RX_FFT
+    # rx_offset_quick =  sweepfreqs - ((rx_nearest_quick-N_RX_FFT/2)/N_RX_FFT*r.adc_clk_hz) % r.adc_clk_hz
+    # chanmap_in[:,:len(rx_nearest_quick[0])] = rx_nearest_quick
+    # lo_freqs = rx_offset_quick
+    
+    # #N_TX_FFT = souk_mkid_readout.souk_mkid_readout.N_TX_FFT
+    # N_TX_FFT=4096
+    # tx_nearest_quick = (np.round(sweepfreqs/r.adc_clk_hz*2*N_TX_FFT+(2*N_TX_FFT)/2)).astype(int)%(2*N_TX_FFT)
+    # chanmap_out[:,tx_nearest_quick] = np.arange(numtones)
+    
+    for p in range(numpoints):
+        for t in range(numtones):
+            rx_nearest_bin, rx_offset = r._get_closest_pfb_bin(sweepfreqs[p,t])
+            chanmap_in[p,t]           = rx_nearest_bin
+            lo_freqs[p,t]             = rx_offset
+            tx_nearest_bin            = r._get_closest_psb_bin(sweepfreqs[p,t])
+            chanmap_out[p,tx_nearest_bin] = t
+            
+    #format the mixer offset frequencies
+    print('format the mixer offset frequencies')
+    fft_period_s = r.mixer._n_upstream_chans / r.mixer._upstream_oversample_factor / r.adc_clk_hz
+    fft_rbw_hz   = 1./fft_period_s
+    phase_steps  = lo_freqs / fft_rbw_hz * 2 * np.pi
+    phase_steps  = ((((phase_steps/np.pi + 1) % 2) - 1)*2**r.mixer._phase_bp).astype('>u4')
+         
+    #format the amplitudes
+    print('format the amplitudes')
+    if amplitudes is None:
+        amplitudes = np.ones(numtones,dtype=float)
+    assert np.all(amplitudes>=0)
+    scaling = np.round(amplitudes*(2**r.mixer._n_scale_bits-1)).astype('>u4')
+    for i in range(min(r.mixer._n_parallel_chans,numtones)):
+        r.mixer.write(f'lo{i}_scale',scaling[i::r.mixer._n_parallel_chans].tobytes())
+    
+    #format the phases
+    print('format the phases')
+    if phases is None:
+        phases = np.zeros(numtones,dtype=float)
+    phase_offsets = ((((phases/np.pi + 1) % 2) -1 )*2**r.mixer._phase_offset_bp).astype('>u4')
+    for i in range(min(r.mixer._n_parallel_chans,numtones)):
+        r.mixer.write(f'lo{i}_phase_offset',phase_offsets[i::r.mixer._n_parallel_chans].tobytes())
+    
+
+    #allocate arrays for the sweep result and errors
+    print('allocate arrays for the sweep result and errors')
+    sz = np.zeros((numpoints,numtones),dtype=complex)
+    ez = np.zeros((numpoints,numtones),dtype=complex)
+
+
+    #check we are using PSB
+    print('check we are using PSB')
+    if r.output.get_mode() != 'PSB':
+        r.output.use_psb()
+
+
+    #perform the sweep
+    print('perform the sweep')
+    for p in range(numpoints):
+        #check if the chanmaps need updating
+        if np.any(chanmap_in[p] != r.chanselect.get_channel_outmap()):
+            print('updating the rx chanmap')
+            r.chanselect.set_channel_outmap(np.copy(chanmap_in[p]))
+        if np.any(chanmap_out[p] != r.psb_chanselect.get_channel_outmap()):
+            print('updating the tx chanmap')
+            r.psb_chanselect.set_channel_outmap(np.copy(chanmap_out[p]))
+        #set the mixer frequencies
+        print('set the mixer frequencies')
+        for i in range(min(r.mixer._n_parallel_chans,numtones)):
+            r.mixer.write(f'lo{i}_phase_inc',phase_steps[p,i::r.mixer._n_parallel_chans].tobytes())
+        #start the stream
+        print('start the stream')
+        time.sleep(0.001)
+        accs,accfreq=get_n_accs(samples_per_point)
+        sz[p] = np.mean(accs['i'][:,chans],axis=0) + 1j * np.mean(accs['q'][:,chans],axis=0)
+        ez[p] = np.std(accs['i'][:,chans],axis=0) + 1j * np.std(accs['q'][:,chans],axis=0)
+        
+
+    result = {'centerfreqs':centerfreqs,
+              'spans':spans,
+              'numpoints':numpoints,
+              'samples_per_point':samples_per_point,
+              'direction':direction,
+              'amplitudes':amplitudes,
+              'phases':phases,
+              'chans':chans,
+              'chanmap_in':chanmap_in,
+              'chanmap_out':chanmap_out,
+              'lo_freqs':lo_freqs,
+              'scaling':scaling,
+              'phase_offsets':phase_offsets,
+              'phase_steps':phase_steps,
+              'sweepfreqs':sweepfreqs,
+              'sweep':sz,
+              'noise':ez,
+              'accfreq':accfreq,
+              'time_per_point':samples_per_point/accfreq,
+              'fpga_status':r.fpga.get_status()}
+    
+    return result
+
+
+
+    
+
+    
+
+    
 
 #function to collect <n> samples
 def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
@@ -368,20 +588,50 @@ def plot_acc(accs,accfreq,ch,logmag=False,unwrapphase=False,nfft=None):
     return f
 
 
-def plot_sweep(freqs_hz,samples,offset_center=True,logmag=False,unwrapphase=False,group_delay_sec=0.0):
+
+def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=False,unwrapphase=False,group_delay_sec=25.3e-6,correct_boundary_phase=True):
     f           = freqs_hz
     z           = samples.real +1j*samples.imag
+    
+    if sample_errors is not None:
+        ez = sample_errors
+
     phase_shift = -group_delay_sec*2*np.pi*f
     z           *= np.exp(-1j*phase_shift)
+    
+
+    if correct_boundary_phase:
+        #when sweeping across the boundary between filterbank channels, a phase offset is introduced.
+        #the value of the offset was recorded to be pi + 2*pi*k/1024, where k is the bin number of the leftmost bin
+        #the cumulative phase offset for each bin is then given by sum(i=0, i<=k, pi + 2*pi*i/1024) = pi*(k+1)*(k+1024)/1024
+        N_RX_FFT     = 8192
+        bins         = (np.round(f/ADCCLK*N_RX_FFT+N_RX_FFT/2)).astype(int)%N_RX_FFT
+        phase_offset = np.pi*(bins+1)*(bins+1024)/1024
+        z            = z*np.exp(-1j*phase_offset)
+
+
     i           = z.real
+    erri        = ez.real
     q           = z.imag
+    errq        = ez.imag
     mag         = np.absolute(z)
+    errmag      = np.absolute(ez)
     phase       = np.angle(z)
+    #errphase    = np.angle(ez) 
+
+    #The noise in the phase is biased by any integrated linear phase shift imparted from a group delay.
+    #A linear phase shift with frequency (constant group delay) is modelled as a uniform distribution,
+    # so the std = sqrt( 1/12 * (b-a)**2 ). This is then divided out of the measured noise:
+    err_from_gd = np.sqrt(1/12*(phase_shift[0]-phase_shift[-1])**2)
+    errphase    = np.angle(ez)/err_from_gd
+
     funit       = 'Hz'
     iunit       = '[ADU]'
     qunit       = '[ADU]'
     magunit     = '[ADU]'
     phaseunit   = '[rad]'
+
+
 
     ic = len(f) / 2
     if (ic % 1):
@@ -397,9 +647,11 @@ def plot_sweep(freqs_hz,samples,offset_center=True,logmag=False,unwrapphase=Fals
         funit='[MHz]'
 
     if logmag:
+        errmag = 20*np.log10((mag+errmag)/mag)
         mag = 20*np.log10(mag)
         magunit='[dB]'
     if unwrapphase:
+        errphase = errphase
         phase = np.unwrap(phase)
         phaseunit = 'unwrapped [rad]'
 
@@ -428,11 +680,18 @@ def plot_sweep(freqs_hz,samples,offset_center=True,logmag=False,unwrapphase=Fals
     s3.set_ylabel(qlabel)
     s4.set_ylabel(phaselabel)
 
-    s0.plot(i, q, '.')
-    s1.plot(f, i)
-    s2.plot(f, mag)
-    s3.plot(f, q)
-    s4.plot(f, phase)
+    if sample_errors is None:
+        s0.plot(i, q, '.')
+        s1.plot(f, i)
+        s2.plot(f, mag)
+        s3.plot(f, q)
+        s4.plot(f, phase)
+    else:
+        s0.errorbar(i, q,xerr=erri,yerr=errq,fmt='o')
+        s1.errorbar(f, i,yerr=erri)
+        s2.errorbar(f, mag,yerr=errmag)
+        s3.errorbar(f, q,yerr=errq)
+        s4.errorbar(f, phase,yerr=errphase)
     plt.suptitle('Center frequency = %.6f MHz'%(cf/1e6))
     plt.tight_layout()
     return fig
