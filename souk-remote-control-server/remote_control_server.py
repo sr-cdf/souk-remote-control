@@ -33,9 +33,12 @@ def rc_stream(r,sock,naccs,*args):
     acc = r.accumulators[ACCNUM]
     acc_len = acc.get_acc_len()
     n_chans = acc.n_chans
-    fpga_clk = r.fpga.get_fpga_clock()
-    r.adc_clk_hz = fpga_clk * 8 # HACK
-    acc_time_ms = 1000* acc_len * acc._n_serial_chans / acc._n_parallel_samples / r.fpga.get_fpga_clock()
+    #fpga_clk = r.fpga.get_fpga_clock()
+    #r.adc_clk_hz = fpga_clk * 8 # HACK
+    #acc_time_ms = 1000* acc_len * acc._n_serial_chans / acc._n_parallel_samples / r.fpga.get_fpga_clock()
+    r.adc_clk_hz = 2457600000
+    fpga_clk = r.adc_clk_hz / 8
+    acc_time_ms = 1000* acc_len * acc._n_serial_chans / acc._n_parallel_samples / fpga_clk
     print(f'Accumulation time is approximately {acc_time_ms:.1f} milliseconds')
     addrs, nbytes = get_bram_addresses(acc)
     acc._wait_for_acc(0.00005)
