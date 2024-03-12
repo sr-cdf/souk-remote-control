@@ -17,6 +17,7 @@ The client runs elsewhere. It sends commands to the server, receives data and pe
 ### Setup:
 
 A copy of `souk-remote-control-server` is needed on the RFSoC.
+
 A copy of `souk-remote-control-client` is needed on a laptop/desktop/whatever that can see the RFSoC on the network.
 
 It is plausible that the client could be executed directly on the RFSoC.
