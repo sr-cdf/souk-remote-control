@@ -181,10 +181,11 @@ def remote_sweep(freqs,spans,numpoints,samples_per_point,direction='up',amplitud
 #             raise(e)
 #     return
 
-def sweep_v1(centerfreqs,span,numpoints,samples_per_point, direction='up',amplitudes=None,phases=None,ret_samples=False,sleeptime=0.0):
+def sweep_v1(r,centerfreqs,span,numpoints,samples_per_point, direction='up',amplitudes=None,phases=None,ret_samples=False,sleeptime=0.0):
     """
     perform a sweep by repeated calling r.set_multi_tone(), and get_n_accs()
 
+    r is an souk_mkid_readout object
     centerfreq is a numpy array of center frequencies in Hz
     span is the sweep span in Hz
     numpoints is an integer number of points to sweep
@@ -210,7 +211,7 @@ def sweep_v1(centerfreqs,span,numpoints,samples_per_point, direction='up',amplit
     for j in range(len(offsets)):
         r.set_multi_tone(freqs+offsets[j],amplitudes=amplitudes,phase_offsets_rads=phases)
         time.sleep(sleeptime)
-        accs,accfreq = get_n_accs(samples_per_point)
+        accs,accfreq = get_n_accs(r,samples_per_point)
         for k in range(len(freqs)):
             if ret_samples:
                 samples[j,k] = accs['i'][:,k] + 1j*accs['q'][:,k]
@@ -238,7 +239,7 @@ def sweep_v1(centerfreqs,span,numpoints,samples_per_point, direction='up',amplit
     return result
 
 
-def sweep_v2(centerfreqs,spans,numpoints,samples_per_point,direction='up',amplitudes=None,phases=None):
+def sweep_v2(r,centerfreqs,spans,numpoints,samples_per_point,direction='up',amplitudes=None,phases=None):
     """
     Perform a frequency sweep using lower level calls than v1..
     
@@ -364,7 +365,7 @@ def sweep_v2(centerfreqs,spans,numpoints,samples_per_point,direction='up',amplit
         #start the stream
         print('start the stream')
         time.sleep(0.001)
-        accs,accfreq=get_n_accs(samples_per_point)
+        accs,accfreq=get_n_accs(r,samples_per_point)
         sz[p] = np.mean(accs['i'][:,chans],axis=0) + 1j * np.mean(accs['q'][:,chans],axis=0)
         ez[p] = np.std(accs['i'][:,chans],axis=0) + 1j * np.std(accs['q'][:,chans],axis=0)
         
@@ -393,10 +394,11 @@ def sweep_v2(centerfreqs,spans,numpoints,samples_per_point,direction='up',amplit
     return result
 
 
-def sweep_v3(centerfreqs,spans,numpoints,samples_per_point,direction='up',amplitudes=None,phases=None,host=REMOTE_HOST,port=REMOTE_PORT,ret_samples=False):
+def sweep_v3(r,centerfreqs,spans,numpoints,samples_per_point,direction='up',amplitudes=None,phases=None,host=REMOTE_HOST,port=REMOTE_PORT,ret_samples=False):
     """
     Perform a frequency sweep using the method in sweep_v2, but operating remotely on the server.
     
+    r is an souk_mkid_readout object
     centerfreqs is a numpy array of center frequencies in Hz
     spans is a numpy array of spans in Hz
     numpoints is an integer number of points to sweep
@@ -431,7 +433,7 @@ def sweep_v3(centerfreqs,spans,numpoints,samples_per_point,direction='up',amplit
     chans    = np.arange(numtones,dtype=int)
     parallel = chans % r.mixer._n_parallel_chans
     serial   = chans // r.mixer._n_parallel_chans
-    accfreq = r.adc_clk_hz/acc.get_acc_len()/PFBLEN
+    accfreq = r.adc_clk_hz/(r.accumulators[ACCNUM]).get_acc_len()/PFBLEN
 
     #define the frequency sweep points for each tone
     print('define the frequency sweep points for each tone')
@@ -548,7 +550,7 @@ def sweep_v3(centerfreqs,spans,numpoints,samples_per_point,direction='up',amplit
     sz=response['sweepi']+1j*response['sweepq']
     ez=response['noisei']+1j*response['noiseq']
         
-    acclen=acc.get_acc_len()
+    acclen=(r.accumulators[ACCNUM]).get_acc_len()
     accfreq = r.adc_clk_hz/acclen/PFBLEN
     
     result = {'centerfreqs':centerfreqs,
@@ -589,7 +591,7 @@ def sweep_v3(centerfreqs,spans,numpoints,samples_per_point,direction='up',amplit
     
 
 #function to collect <n> samples
-def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
+def get_n_accs(r, n,print_summary=False,plot_accs=False,remote_cmd=True):
     #OBSTIME = 30 #default number of seconds to record
     #ACCLEN  = 32768 #default
     #ACCLEN  = 3000 #400hz dropped 2 packets in 2.5 seconds
@@ -602,7 +604,7 @@ def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
 
     NACCS=n
     #print('Streamer: Get ACCLEN')
-    ACCLEN=acc.get_acc_len()
+    ACCLEN=(r.accumulators[ACCNUM]).get_acc_len()
     ACCFREQ = ADCCLK/ACCLEN/PFBLEN
 
     #store samples in this array:
@@ -618,7 +620,7 @@ def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
 
     #disable any current stream
     #print('Streamer: Start: 0.0.0.0')
-    #acc.set_dest_ip(ACC_OFF_IP)
+    #(r.accumulators[ACCNUM]).set_dest_ip(ACC_OFF_IP)
 
 
     #clear the socket buffer in case it is has overflowed
@@ -626,7 +628,7 @@ def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
 
     #start transmitting
     print('Streamer: Start: ',DEST_ADDR[0])
-    acc.set_dest_ip(DEST_ADDR[0])
+    (r.accumulators[ACCNUM]).set_dest_ip(DEST_ADDR[0])
 
     if remote_cmd:
         remote_stream(NACCS)
@@ -686,7 +688,7 @@ def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
 
         accs['q'][count_accs][current_index*PAYLOAD_CHANS:(current_index+1)*PAYLOAD_CHANS] = PACKETS[current_index]['payload'][1::2]
 
-        #update previous timestamp after getting the final packet of this acc.
+        #update previous timestamp after getting the final packet of this (r.accumulators[ACCNUM]).
         if current_index == PACKETS_PER_ACC-1:
             #print(current_timestamp)
             previous_timestamp = current_timestamp
@@ -696,7 +698,7 @@ def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
 
     #stop acc
     #print('Streamer: Stop, IP:0.0.0.0')
-    #acc.set_dest_ip(ACC_OFF_IP)
+    #(r.accumulators[ACCNUM]).set_dest_ip(ACC_OFF_IP)
     print('\nStreamer Done')
     empty_socket_buffer(s, printing=False)
 
@@ -880,7 +882,7 @@ def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=Fal
 
 
 
-def get_started():
+def get_started(restart_server=False):
     
     r=souk_mkid_readout.SoukMkidReadout(REMOTE_HOST,configfile=REMOTE_CONFIG)
 
@@ -894,25 +896,25 @@ def get_started():
         print('client:get_started: hardcoding r.adc_clk_hz')
         r.adc_clk_hz=2457600000
 
+    if restart_server:
+        #kill an aleady running server that, if there is one.
+        try:
+            remote_quit()
+        except ConnectionRefusedError:
+            pass
 
-    #kill an aleady running server that, if there is one.
-    try:
-        remote_quit()
-    except ConnectionRefusedError:
-        pass
-
-    #start the server now
-    remote_start()
+        #start the server now
+        remote_start()
     
     #continue running in interactive shell and get accs as required
-    #a1=get_n_accs(1)
+    #a1=get_n_accs(r,1)
     
     return r,acc
 
 
 if __name__ == '__main__':
     
-    r,acc = get_started()
+    r,acc = get_started(restart_server=False)
 
     gd=0.00005048176
     ch=0
