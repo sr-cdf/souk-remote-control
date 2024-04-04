@@ -56,7 +56,7 @@ DEST_ADDR       = (DEST_IP,DEST_PORT)
 ADCCLK          = 2457600000 #2.4576 GHz
 PFBLEN          = 4096
 NCHANS          = 2048 #number of tones in a single acquisition
-
+ACCNUM          = 0 #which accumulation to read from
 
 #define the packet datatype with a name and format, a single acquisition is transmitted over multiple packets
 
