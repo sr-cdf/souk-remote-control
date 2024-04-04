@@ -721,18 +721,7 @@ def get_n_accs(n,print_summary=False,plot_accs=False,remote_cmd=True):
     return accs, ACCFREQ
 
 
-#kill any scripts that are already running now, if there are any.
-try:
-    remote_quit()
-except ConnectionRefusedError:
-    pass
 
-#start the script now
-remote_start()
-
-
-#continue running in interactive shell and get accs as required
-#a1=get_n_accs(1)
 
 
 def plot_acc(accs,accfreq,ch,logmag=False,unwrapphase=False,nfft=None):
@@ -902,13 +891,34 @@ def get_started():
     acc = r.accumulators[0]
 
     if not r.adc_clk_hz:
-        r.adc_clk_hz=245760000`0
+        print('client:get_started: hardcoding r.adc_clk_hz')
+        r.adc_clk_hz=2457600000
 
 
-# xxx
+    #kill an aleady running server that, if there is one.
+    try:
+        remote_quit()
+    except ConnectionRefusedError:
+        pass
+
+    #start the server now
+    remote_start()
+    
+    #continue running in interactive shell and get accs as required
+    #a1=get_n_accs(1)
+    
+    return r,acc
+
+
 if __name__ == '__main__':
     
     r,acc = get_started()
+
+    gd=0.00005048176
+    ch=0
+    r.output.use_psb()
+    freqs=np.array([500e6,1000e6,1500e6,2000e6]); amps=np.ones_like(freqs); phases=np.random.uniform(0,2*np.pi,len(freqs))
+
     
 
 
