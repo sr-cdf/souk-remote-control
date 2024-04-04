@@ -8,6 +8,9 @@ from subprocess import Popen, PIPE
 import pickle
 import struct
 
+import souk_mkid_readout
+
+
 def get_interface_ip(target_address):
     """Connects to <target_address> and returns the ip address of the local socket"""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -101,25 +104,6 @@ ACC_DTYPE = np.dtype([('timestamp',FMT_TIMESTAMP),
                       ('acc_error',FMT_ERROR),
                       ('i',FMT_PAYLOAD,NCHANS),
                       ('q',FMT_PAYLOAD,NCHANS)])
-
-# xxx
-
-#get access to the on board accumulator so we can later find out the accumulator length to calculate the sample rate and get the right number of packets
-import souk_mkid_readout
-
-r=souk_mkid_readout.SoukMkidReadout(REMOTE_HOST,configfile=REMOTE_CONFIG)
-
-if not r.fpga.is_programmed():
-    r.program()
-    r.initialize()
-
-#ACC_OFF_IP     = "0.0.0.0" #address to use to disable stream
-
-acc = r.accumulators[0]
-
-if not r.adc_clk_hz:
-    r.adc_clk_hz=2457600000
-
 
 
 
@@ -902,4 +886,29 @@ def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=Fal
     plt.suptitle('Center frequency = %.6f MHz'%(cf/1e6))
     plt.tight_layout()
     return fig
+
+
+
+
+
+def get_started():
+    
+    r=souk_mkid_readout.SoukMkidReadout(REMOTE_HOST,configfile=REMOTE_CONFIG)
+
+    if not r.fpga.is_programmed():
+        r.program()
+        r.initialize()
+
+    acc = r.accumulators[0]
+
+    if not r.adc_clk_hz:
+        r.adc_clk_hz=245760000`0
+
+
+# xxx
+if __name__ == '__main__':
+    
+    r,acc = get_started()
+    
+
 
