@@ -213,7 +213,6 @@ r_local = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=True) # for fast a
 sock       = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # for general fw register wirting
 sock_local = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # for fast accumulator streaming 
 
-print(r.chanselect.get_channel_outmap.__doc__)
 
 
 #check the firmware is intitialised
