@@ -210,10 +210,6 @@ def rc_sweep(r,r_local,arg,ret_samples=False):
 #establish casper connections to the firmware
 r       = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=False) # for general fw register wirting
 r_local = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=True) # for fast accumulator streaming 
-sock       = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # for general fw register wirting
-sock_local = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # for fast accumulator streaming 
-
-
 
 #check the firmware is intitialised
 try:
@@ -222,6 +218,12 @@ except AttributeError as e:
     print('Remote Control Error: accumulator not found, trying to program the board...')
     r.program()
     r.initialize()
+    r       = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=False) # for general fw register wirting
+    r_local = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=True) # for fast accumulator streaming 
+
+
+sock       = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # for general fw register wirting
+sock_local = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # for fast accumulator streaming 
 
 
 #open the remote control listener socket
