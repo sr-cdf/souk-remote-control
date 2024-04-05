@@ -219,8 +219,10 @@ sock_local = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # for fast accumul
 try:
     acc       = r.accumulators[ACCNUM]
 except AttributeError as e:
-    print('Remote Control Error: accumulator not found, is the firmware intialised')
-    raise e
+    print('Remote Control Error: accumulator not found, trying to program the board...')
+    r.program()
+    r.initialize()
+
 
 #open the remote control listener socket
 listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
