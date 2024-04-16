@@ -310,4 +310,3 @@ try:
 except:
     pass
 sock.close()
-sock_local.close()
