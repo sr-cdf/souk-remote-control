@@ -180,7 +180,7 @@ def rc_sweep(r,r_local,arg,ret_samples=False):
         #     r.mixer.write(f'lo{i}_phase_inc',request['phase_steps'][p,i::r.mixer._n_parallel_chans].tobytes())
         
         
-        time.sleep(5*1/accfreq)
+        time.sleep(50*1/accfreq)
 
         #start the stream
         print('start the stream')
