@@ -5,7 +5,7 @@
 #     Edit the sudoers file with
 #         sudo visudo -f /etc/sudoers.d/souk-remote-control
 #     Add the following line:
-#         casper ALL=(ALL:ALL) NOPASSWD: /home/casper/py3venv/bin/python -u ./souk_poll_acc_remote_control.py --remote_control_port 12345
+#         casper ALL=(ALL:ALL) NOPASSWD: /home/casper/py3venv/bin/python -u ./remote_control_server.py
 #     Exit visudo
 # Now the following can be executed without being prompted for a password...
 
