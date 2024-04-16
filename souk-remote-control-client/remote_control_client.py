@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import mlab
 import numpy as np
 import socket
 import time
@@ -80,10 +81,10 @@ PACKET_DTYPE     = np.dtype([('packet_header',[(NAME_TIMESTAMP, FMT_TIMESTAMP),
                              (NAME_PAYLOAD, FMT_PAYLOAD, PAYLOAD_ITEMS) ] )
 
 #for convenience, define the offset of each field in the packet
-OFFSET_TIMESTAMP = PACKET_DTYPE['packet_header'].fields[NAME_TIMESTAMP][1]
-OFFSET_ERROR     = PACKET_DTYPE['packet_header'].fields[NAME_ERROR][1]
-OFFSET_INDEX     = PACKET_DTYPE['packet_header'].fields[NAME_INDEX][1]
-OFFSET_PAYLOAD   = PACKET_DTYPE.fields[NAME_PAYLOAD][1]
+OFFSET_TIMESTAMP = (PACKET_DTYPE['packet_header'].fields)[NAME_TIMESTAMP][1]
+OFFSET_ERROR     = (PACKET_DTYPE['packet_header'].fields)[NAME_ERROR][1]
+OFFSET_INDEX     = (PACKET_DTYPE['packet_header'].fields)[NAME_INDEX][1]
+OFFSET_PAYLOAD   = (PACKET_DTYPE.fields)[NAME_PAYLOAD][1]
 PACKET_BYTES     = PACKET_DTYPE.itemsize
 PACKETS_PER_ACC  = 2*NCHANS // PAYLOAD_ITEMS
 
@@ -203,7 +204,7 @@ def sweep_v1(r,centerfreqs,span,numpoints,samples_per_point, direction='up',ampl
     offsets = np.linspace(-span/2,span/2,numpoints)
     sweepfreqs = np.zeros((numpoints,numtones),dtype=float)
     
-    samples=None
+    #samples=None
     if ret_samples:
         assert(numpoints*len(centerfreqs)*samples_per_point<100e6)
         samples = np.zeros((numpoints,numtones,samples_per_point),dtype=complex)
@@ -738,10 +739,10 @@ def plot_acc(accs,accfreq,ch,logmag=False,unwrapphase=False,nfft=None):
 
     nfft= len(i) if nfft==None else nfft
 
-    pxi,pfi = plt.mlab.psd(i,Fs=accfreq,NFFT=nfft,window=plt.mlab.window_none)
-    pxq,pfq = plt.mlab.psd(q,Fs=accfreq,NFFT=nfft,window=plt.mlab.window_none)
-    pxa,pfa = plt.mlab.psd(a,Fs=accfreq,NFFT=nfft,window=plt.mlab.window_none)
-    pxp,pfp = plt.mlab.psd(p,Fs=accfreq,NFFT=nfft,window=plt.mlab.window_none)
+    pxi,pfi = mlab.psd(i,Fs=accfreq,NFFT=nfft,window=mlab.window_none)
+    pxq,pfq = mlab.psd(q,Fs=accfreq,NFFT=nfft,window=mlab.window_none)
+    pxa,pfa = mlab.psd(a,Fs=accfreq,NFFT=nfft,window=mlab.window_none)
+    pxp,pfp = mlab.psd(p,Fs=accfreq,NFFT=nfft,window=mlab.window_none)
 
     if logmag:
         a = 20*np.log10(a)
@@ -768,7 +769,7 @@ def plot_acc(accs,accfreq,ch,logmag=False,unwrapphase=False,nfft=None):
 
 
 
-def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=False,unwrapphase=False,group_delay_sec=25.3e-6,correct_boundary_phase=True,figtitle=None):
+def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=False,unwrapphase=False,group_delay_sec=25.3e-6,correct_boundary_phase=True,figtitle=''):
     f           = freqs_hz
     z           = samples.real +1j*samples.imag
     
@@ -843,7 +844,7 @@ def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=Fal
     phaselabel = 'Phase '+phaseunit
 
 
-    fig=plt.figure(figsize=[9.6, 4.5])
+    fig=plt.figure(figsize=(9.6, 4.5))
     fig.suptitle(figtitle)
     s0=plt.subplot(131,aspect='equal',adjustable='datalim')
     s1=plt.subplot(232)
@@ -889,8 +890,13 @@ def get_started(restart_server=False):
     if not r.fpga.is_programmed():
         r.program()
         r.initialize()
+    try:
+        acc = r.accumulators[ACCNUM]
+    except AttributeError:
+        r.initialize()
+        acc = r.accumulators[ACCNUM]
+    
 
-    acc = r.accumulators[0]
 
     if not r.adc_clk_hz:
         print('client:get_started: hardcoding r.adc_clk_hz')
