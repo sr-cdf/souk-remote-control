@@ -13,7 +13,7 @@ DESTPORT = 10000
 ACCNUM = 0
 
 from souk_mkid_readout import SoukMkidReadout
-from souk_poll_acc import get_bram_addresses, get_bram_addresses_mixer,fast_write_mixer,fast_read_bram, wait_non_zero_ip, format_packets
+from souk_poll_acc import get_bram_addresses, get_bram_addresses_mixer_tx,get_bram_addresses_mixer_rx,fast_write_mixer,fast_read_bram, wait_non_zero_ip, format_packets
 
 
 
@@ -53,8 +53,10 @@ def read_n_accs(r,naccs):
 def write_mixer_phase_steps(r,phases):
     phase_steps = np.zeros(r.mixer.n_chans)
     phase_steps[:len(phases)] = phases
-    mixer_addrs, mixer_nbytes = get_bram_addresses_mixer(r.mixer)
-    fast_write_mixer(r.mixer, phase_steps, mixer_addrs, mixer_nbytes)
+    mixer_tx_addrs, mixer_tx_nbytes = get_bram_addresses_mixer_tx(r.mixer)
+    mixer_rx_addrs, mixer_rx_nbytes = get_bram_addresses_mixer_rx(r.mixer)
+    fast_write_mixer(r.mixer, phase_steps, mixer_tx_addrs, mixer_tx_nbytes)
+    fast_write_mixer(r.mixer, phase_steps, mixer_rx_addrs, mixer_rx_nbytes)
     return
 
 
@@ -136,7 +138,8 @@ def rc_sweep(r,r_local,arg,ret_samples=False):
         samplesq = np.zeros((numpoints,numtones,samples_per_point),dtype='<i4')
         
     phase_steps = request['phase_steps'].astype('<i4')
-    mixer_addrs, mixer_nbytes = get_bram_addresses_mixer(r_local.mixer)
+    mixer_tx_addrs, mixer_tx_nbytes = get_bram_addresses_mixer_tx(r_local.mixer)
+    mixer_rx_addrs, mixer_rx_nbytes = get_bram_addresses_mixer_rx(r_local.mixer)
 
     for p in range(numpoints):
         print(f'sweep point {p+1} of {numpoints}')
@@ -169,10 +172,15 @@ def rc_sweep(r,r_local,arg,ret_samples=False):
         phases = phase_steps[p]
         #fast_write_mixer(r.mixer, phase_steps, mixer_addrs, mixer_nbytes)
         phases = phases.reshape(r.mixer._n_parallel_chans, r.mixer._n_serial_chans)
-        n_write = (mixer_nbytes // 512)
-        for i, addr in enumerate(mixer_addrs):
+        n_write_tx = (mixer_tx_nbytes // 512)
+        n_write_rx = (mixer_rx_nbytes // 512)
+        for i, addr in enumerate(mixer_tx_addrs):
             raw = phases[i].tobytes()
-            for j in range(n_write):
+            for j in range(n_write_tx):
+                r_local.mixer.host.transport.axil_mm[addr+j*512:addr +(j+1)*512] = raw[j*512:(j+1)*512]
+        for i, addr in enumerate(mixer_rx_addrs):
+            raw = phases[i].tobytes()
+            for j in range(n_write_rx):
                 r_local.mixer.host.transport.axil_mm[addr+j*512:addr +(j+1)*512] = raw[j*512:(j+1)*512]
 
         # for i in range(min(r.mixer._n_parallel_chans,request['numtones'))):

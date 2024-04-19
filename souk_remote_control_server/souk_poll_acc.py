@@ -24,11 +24,23 @@ def get_bram_addresses(acc):
         assert addrs[i] == addrs[i-1] + nbytes
     return addrs, nbytes
 
-def get_bram_addresses_mixer(mixer):
+def get_bram_addresses_mixer_tx(mixer):
     addrs = []
     nbytes = mixer._n_serial_chans * 4 # phases in 4 byte words
     for i in range(mixer._n_parallel_chans):
-        ramname = f'{mixer.prefix}lo{i}_phase_inc'
+        ramname = f'{mixer.prefix}tx_lo{i}_phase_inc'
+        addrs += [mixer.host.transport._get_device_address(ramname)]
+    # This test isn't valid, because there are other devices sitting between
+    # the phase increment brams
+    #for i in range(1, mixer._n_parallel_chans):
+    #    assert addrs[i] == addrs[i-1] + nbytes, addrs
+    return addrs, nbytes
+
+def get_bram_addresses_mixer_rx(mixer):
+    addrs = []
+    nbytes = mixer._n_serial_chans * 4 # phases in 4 byte words
+    for i in range(mixer._n_parallel_chans):
+        ramname = f'{mixer.prefix}rx_lo{i}_phase_inc'
         addrs += [mixer.host.transport._get_device_address(ramname)]
     # This test isn't valid, because there are other devices sitting between
     # the phase increment brams
