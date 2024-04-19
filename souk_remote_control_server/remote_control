@@ -12,7 +12,7 @@
 
 echo "Starting remote control script"
 
-cd /home/casper/src/souk-remote-control/souk-remote-control-server/
+cd /home/casper/src/souk-remote-control/souk_remote_control_server/
 
 sudo /home/casper/py3venv/bin/python -u ./remote_control_server.py
 
