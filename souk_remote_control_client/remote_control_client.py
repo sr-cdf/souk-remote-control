@@ -44,8 +44,8 @@ def empty_socket_buffer(sock,printing=True):
 REMOTE_HOST     = 'krm4'
 REMOTE_PORT     = 12345
 REMOTE_USER     = 'casper'
-# REMOTE_SCRIPT   = '~/src/souk-remote-control/souk-remote-control-server/remote_control_start'
-REMOTE_SCRIPT   = '/home/casper/src/souk-remote-control/souk-remote-control-server/remote_control'
+# REMOTE_SCRIPT   = '~/src/souk-remote-control/souk_remote_control_server/remote_control_start'
+REMOTE_SCRIPT   = '/home/casper/src/souk-remote-control/souk_remote_control_server/remote_control'
 REMOTE_CONFIG   = '/home/sam/souk/souk-firmware/software/control_sw/config/souk-single-pipeline-krm.yaml'
 REMOTE_TESTPORT = 7147 #so we can temporarily connect to casper borph to find which local interface to bind the socket to.
 
