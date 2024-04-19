@@ -32,4 +32,4 @@ It is plausible that the client could be executed directly on the RFSoC.
 
 ## Tested Firmware Version
 
-This software has been tested with the SO:UK Firmware version 6.3.0.0. Please ensure that your firmware version matches this to guarantee compatibility. If you are using a different firmware version, please be aware that this software may not work as expected.
+This software has been tested with the SO:UK Firmware version 7.1.0.0. Please ensure that your firmware version matches this to guarantee compatibility. If you are using a different firmware version, please be aware that this software may not work as expected.

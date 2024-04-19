@@ -326,7 +326,8 @@ def sweep_v2(r,centerfreqs,spans,numpoints,samples_per_point,direction='up',ampl
     assert np.all(amplitudes>=0)
     scaling = np.round(amplitudes*(2**r.mixer._n_scale_bits-1)).astype('>u4')
     for i in range(min(r.mixer._n_parallel_chans,numtones)):
-        r.mixer.write(f'lo{i}_scale',scaling[i::r.mixer._n_parallel_chans].tobytes())
+        r.mixer.write(f'rx_lo{i}_scale',scaling[i::r.mixer._n_parallel_chans].tobytes())
+        r.mixer.write(f'tx_lo{i}_scale',scaling[i::r.mixer._n_parallel_chans].tobytes())
     
     #format the phases
     print('format the phases')
@@ -334,7 +335,8 @@ def sweep_v2(r,centerfreqs,spans,numpoints,samples_per_point,direction='up',ampl
         phases = np.zeros(numtones,dtype=float)
     phase_offsets = ((((phases/np.pi + 1) % 2) -1 )*2**r.mixer._phase_offset_bp).astype('>u4')
     for i in range(min(r.mixer._n_parallel_chans,numtones)):
-        r.mixer.write(f'lo{i}_phase_offset',phase_offsets[i::r.mixer._n_parallel_chans].tobytes())
+        r.mixer.write(f'rx_lo{i}_phase_offset',phase_offsets[i::r.mixer._n_parallel_chans].tobytes())
+        r.mixer.write(f'tx_lo{i}_phase_offset',phase_offsets[i::r.mixer._n_parallel_chans].tobytes())
     
 
     #allocate arrays for the sweep result and errors
@@ -362,7 +364,8 @@ def sweep_v2(r,centerfreqs,spans,numpoints,samples_per_point,direction='up',ampl
         #set the mixer frequencies
         print('set the mixer frequencies')
         for i in range(min(r.mixer._n_parallel_chans,numtones)):
-            r.mixer.write(f'lo{i}_phase_inc',phase_steps[p,i::r.mixer._n_parallel_chans].tobytes())
+            r.mixer.write(f'rx_lo{i}_phase_inc',phase_steps[p,i::r.mixer._n_parallel_chans].tobytes())
+            r.mixer.write(f'tx_lo{i}_phase_inc',phase_steps[p,i::r.mixer._n_parallel_chans].tobytes())
         #start the stream
         print('start the stream')
         time.sleep(0.001)
@@ -489,7 +492,8 @@ def sweep_v3(r,centerfreqs,spans,numpoints,samples_per_point,direction='up',ampl
     assert np.all(amplitudes>=0)
     scaling = np.round(amplitudes*(2**r.mixer._n_scale_bits-1)).astype('>u4')
     for i in range(min(r.mixer._n_parallel_chans,numtones)):
-        r.mixer.write(f'lo{i}_scale',scaling[i::r.mixer._n_parallel_chans].tobytes())
+        r.mixer.write(f'rx_lo{i}_scale',scaling[i::r.mixer._n_parallel_chans].tobytes())
+        r.mixer.write(f'tx_lo{i}_scale',scaling[i::r.mixer._n_parallel_chans].tobytes())
     
     #format the phases
     print('format the phases')
@@ -497,7 +501,8 @@ def sweep_v3(r,centerfreqs,spans,numpoints,samples_per_point,direction='up',ampl
         phases = np.zeros(numtones,dtype=float)
     phase_offsets = ((((phases/np.pi + 1) % 2) -1 )*2**r.mixer._phase_offset_bp).astype('>u4')
     for i in range(min(r.mixer._n_parallel_chans,numtones)):
-        r.mixer.write(f'lo{i}_phase_offset',phase_offsets[i::r.mixer._n_parallel_chans].tobytes())
+        r.mixer.write(f'rx_lo{i}_phase_offset',phase_offsets[i::r.mixer._n_parallel_chans].tobytes())
+        r.mixer.write(f'tx_lo{i}_phase_offset',phase_offsets[i::r.mixer._n_parallel_chans].tobytes())
     
 
     #allocate arrays for the sweep result and errors
