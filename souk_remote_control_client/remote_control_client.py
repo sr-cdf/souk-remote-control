@@ -208,6 +208,8 @@ def sweep_v1(r,centerfreqs,span,numpoints,samples_per_point, direction='up',ampl
     if ret_samples:
         assert(numpoints*len(centerfreqs)*samples_per_point<100e6)
         samples = np.zeros((numpoints,numtones,samples_per_point),dtype=complex)
+    else:
+        samples=None
     
     for j in range(len(offsets)):
         r.set_multi_tone(freqs+offsets[j],amplitudes=amplitudes,phase_offsets_rads=phases)
