@@ -6,7 +6,8 @@ import numpy as np
 import struct
 import pickle
 
-FPGFILE = '/home/casper/src/souk-firmware/firmware/src/souk_single_pipeline_krm/outputs/souk_single_pipeline_krm.fpg'
+# FPGFILE = '/home/casper/src/souk-firmware/firmware/src/souk_single_pipeline_krm/outputs/souk_single_pipeline_krm.fpg'
+CONFIGFILE = '/home/casper/src/souk-firmware/software/control_sw/config/souk-single-pipeline-krm-2G.yaml'
 LISTENER_IP = '0.0.0.0'
 LISTENER_PORT = 12345
 DESTPORT = 10000
@@ -70,7 +71,8 @@ def rc_stream(r,sock,arg):
     #fpga_clk = r.fpga.get_fpga_clock()
     #r.adc_clk_hz = fpga_clk * 8 # HACK
     #acc_time_ms = 1000* acc_len * acc._n_serial_chans / acc._n_parallel_samples / r.fpga.get_fpga_clock()
-    r.adc_clk_hz = 2457600000
+    r.adc_clk_hz = r.rfdc.core.get_pll_config()['SampleRate']*1e9 / float(r.rfdc.core.device_info['t224_dt_adc0_dec_mode'].split('x')[0])
+
     fpga_clk = r.adc_clk_hz / 8
     acc_time_ms = 1000* acc_len * acc._n_serial_chans / acc._n_parallel_samples / fpga_clk
     print(f'Accumulation time is approximately {acc_time_ms:.1f} milliseconds')
@@ -216,8 +218,10 @@ def rc_sweep(r,r_local,arg,ret_samples=False):
 
 
 #establish casper connections to the firmware
-r       = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=False) # for general fw register wirting
-r_local = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=True) # for fast accumulator streaming 
+# r       = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=False) # for general fw register wirting
+# r_local = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=True) # for fast accumulator streaming
+r       = SoukMkidReadout('localhost', configfile=CONFIGFILE, local=False) # for general fw register wirting
+r_local = SoukMkidReadout('localhost', configfile=CONFIGFILE, local=True) # for fast accumulator streaming
 
 #check the firmware is intitialised
 try:
@@ -226,8 +230,10 @@ except AttributeError as e:
     print('Remote Control Error: accumulator not found, trying to program the board...')
     r.program()
     r.initialize()
-    r       = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=False) # for general fw register wirting
-    r_local = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=True) # for fast accumulator streaming 
+    # r       = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=False) # for general fw register wirting
+    # r_local = SoukMkidReadout('localhost', fpgfile=FPGFILE, local=True) # for fast accumulator streaming
+    r       = SoukMkidReadout('localhost', configfile=CONFFILE, local=False) # for general fw register wirting
+    r_local = SoukMkidReadout('localhost', configfile=CONFFILE, local=True) # for fast accumulator streaming
 
 
 sock       = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # for general fw register wirting

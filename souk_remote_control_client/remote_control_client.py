@@ -46,7 +46,7 @@ REMOTE_PORT     = 12345
 REMOTE_USER     = 'casper'
 # REMOTE_SCRIPT   = '~/src/souk-remote-control/souk_remote_control_server/remote_control_start'
 REMOTE_SCRIPT   = '/home/casper/src/souk-remote-control/souk_remote_control_server/remote_control'
-REMOTE_CONFIG   = '/home/sam/souk/souk-firmware/software/control_sw/config/souk-single-pipeline-krm.yaml'
+REMOTE_CONFIG   = '/home/sam/souk/souk-firmware/software/control_sw/config/souk-single-pipeline-krm-2G.yaml'
 REMOTE_TESTPORT = 7147 #so we can temporarily connect to casper borph to find which local interface to bind the socket to.
 
 #define the address of the receiver (destination of the packets)
@@ -54,7 +54,8 @@ DEST_IP         = get_interface_ip((REMOTE_HOST, REMOTE_TESTPORT))
 DEST_PORT       = 10000
 DEST_ADDR       = (DEST_IP,DEST_PORT)
 
-ADCCLK          = 2457600000 #2.4576 GHz
+# ADCCLK          = 2457600000 #2.4576 GHz
+# ADCCLK          = 2048000000
 PFBLEN          = 4096
 NCHANS          = 2048 #number of tones in a single acquisition
 ACCNUM          = 0 #which accumulation to read from
@@ -202,6 +203,13 @@ def sweep_v1(r,centerfreqs,span,numpoints,samples_per_point, direction='up',ampl
     sz = np.zeros((numpoints,numtones),dtype=complex)
     ez = np.zeros((numpoints,numtones),dtype=complex)              
     offsets = np.linspace(-span/2,span/2,numpoints)
+    if direction =='up':
+        pass
+    elif direction == 'down':
+        offsets = offsets[::-1]
+    else:
+        raise ValueError('direction should be "up" or "down", not "%s".'%direction)
+
     sweepfreqs = np.zeros((numpoints,numtones),dtype=float)
     
     #samples=None
@@ -213,6 +221,11 @@ def sweep_v1(r,centerfreqs,span,numpoints,samples_per_point, direction='up',ampl
     
     for j in range(len(offsets)):
         r.set_multi_tone(freqs+offsets[j],amplitudes=amplitudes,phase_offsets_rads=phases)
+        time.sleep(0.1)
+        r.sync.arm_sync(wait=False)
+        time.sleep(0.1)
+        r.sync.sw_sync()
+
         time.sleep(sleeptime)
         accs,accfreq = get_n_accs(r,samples_per_point)
         for k in range(len(freqs)):
@@ -613,7 +626,7 @@ def get_n_accs(r, n,print_summary=False,plot_accs=False,remote_cmd=True):
     NACCS=n
     #print('Streamer: Get ACCLEN')
     ACCLEN=(r.accumulators[ACCNUM]).get_acc_len()
-    ACCFREQ = ADCCLK/ACCLEN/PFBLEN
+    ACCFREQ = r.adc_clk_hz/ACCLEN/PFBLEN
 
     #store samples in this array:
     accs      = np.zeros(NACCS,dtype=ACC_DTYPE)
@@ -776,7 +789,7 @@ def plot_acc(accs,accfreq,ch,logmag=False,unwrapphase=False,nfft=None):
 
 
 
-def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=False,unwrapphase=False,group_delay_sec=25.3e-6,correct_boundary_phase=True,figtitle=''):
+def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=False,unwrapphase=False,group_delay_sec=25.3e-6,correct_boundary_phase=True,figtitle='',adc_clk_hz=2048000000):
     f           = freqs_hz
     z           = samples.real +1j*samples.imag
     
@@ -792,7 +805,7 @@ def plot_sweep(freqs_hz,samples,sample_errors=None,offset_center=True,logmag=Fal
         #the value of the offset was recorded to be pi + 2*pi*k/1024, where k is the bin number of the leftmost bin
         #the cumulative phase offset for each bin is then given by sum(i=0, i<=k, pi + 2*pi*i/1024) = pi*(k+1)*(k+1024)/1024
         N_RX_FFT     = 8192
-        bins         = (np.round(f/ADCCLK*N_RX_FFT+N_RX_FFT/2)).astype(int)%N_RX_FFT
+        bins         = (np.round(f/adc_clk_hz*N_RX_FFT+N_RX_FFT/2)).astype(int)%N_RX_FFT
         #phase_offset = np.pi*(bins+1)*(bins+1024)/1024
         phase_offset = np.pi*(bins%2-1)
         z            = z*np.exp(-1j*phase_offset)
@@ -907,7 +920,8 @@ def get_started(restart_server=False):
 
     if not r.adc_clk_hz:
         print('client:get_started: hardcoding r.adc_clk_hz')
-        r.adc_clk_hz=2457600000
+        # r.adc_clk_hz=2457600000
+        r.adc_clk_hz = r.rfdc.core.get_pll_config()['SampleRate']*1e9 / float(r.rfdc.core.device_info['t224_dt_adc0_dec_mode'].split('x')[0])
 
     if restart_server:
         #kill an aleady running server that, if there is one.
