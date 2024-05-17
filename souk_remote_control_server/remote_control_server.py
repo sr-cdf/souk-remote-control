@@ -71,7 +71,7 @@ def rc_stream(r,sock,arg):
     #fpga_clk = r.fpga.get_fpga_clock()
     #r.adc_clk_hz = fpga_clk * 8 # HACK
     #acc_time_ms = 1000* acc_len * acc._n_serial_chans / acc._n_parallel_samples / r.fpga.get_fpga_clock()
-    r.adc_clk_hz = r.rfdc.core.get_pll_config()['SampleRate']*1e9 / float(r.rfdc.core.device_info['t224_dt_adc0_dec_mode'].split('x')[0])
+    r.adc_clk_hz = r.rfdc.core.get_pll_config(0,'adc')['SampleRate']*1e9 / float(r.rfdc.core.device_info['t224_dt_adc0_dec_mode'].split('x')[0])
 
     fpga_clk = r.adc_clk_hz / 8
     acc_time_ms = 1000* acc_len * acc._n_serial_chans / acc._n_parallel_samples / fpga_clk
